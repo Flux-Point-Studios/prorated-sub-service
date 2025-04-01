@@ -1,59 +1,22 @@
 use aiken/dict
-use aiken/hash.{Blake2b_224, Hash}
-use aiken/interval.{Finite, Interval, IntervalBound, NegativeInfinity, PositiveInfinity}
+use aiken/interval.{Finite}
 use aiken/list
-use aiken/time.{PosixTime}
-use aiken/transaction.{
-  Input, Mint, Output, OutputReference, Transaction, TransactionId,
-}
-use aiken/transaction/credential.{Address, VerificationKey, VerificationKeyHash}
+use aiken/transaction.{ScriptContext, Transaction}
+use aiken/transaction/credential.{ScriptCredential, VerificationKey}
 use aiken/transaction/value
 use subscription/lib/subscription.{
   MintAction, SubscriptionDatum, day_in_ms, penalty_period_1, penalty_period_2,
   subscription_amount, subscription_period,
 }
 
-// Type alias for clarity
-type Time = PosixTime
-
-// Datum for the subscription UTXO
-type SubscriptionDatum {
-  owner: VerificationKeyHash,
-  start_time: Time,
-}
-
-// Redeemer for minting operations
-type MintAction {
-  Subscribe
-  Unsubscribe
-}
-
-// Constants for the time periods and penalties
-const day_in_ms = 86400000 // 24 * 60 * 60 * 1000
-const penalty_period_1 = 10 * day_in_ms // 10 days in ms
-const penalty_period_2 = 20 * day_in_ms // 20 days in ms
-const subscription_period = 30 * day_in_ms // 30 days in ms
-
-// Amount of TALOS tokens for subscription
-const subscription_amount = 10000
-
-// Main validator with spending and minting capabilities
-validator subscription(
-  admin: ByteArray,
-  talos_policy_id: ByteArray,
-  talos_asset_name: ByteArray,
-) {
-  // Spending validator
-  fn spend(
-    datum: SubscriptionDatum,
-    _redeemer: Data,
-    ctx: ScriptContext,
-  ) -> Bool {
+validator {
+  fn spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext) -> Bool {
     let ScriptContext { transaction, purpose } = ctx
-
-    // Extract transaction inputs/outputs and other data
-    let Transaction { inputs, outputs, mint, extra_signatories, validity_range, .. } =
-      transaction
+    let Transaction { outputs, mint, extra_signatories, validity_range, .. } = transaction
+    
+    let admin: ByteArray = #"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
+    let talos_asset_name: ByteArray = #"74616c6f73"
 
     // 1. Verify the owner's signature
     expect list.any(extra_signatories, fn(sig) { sig == datum.owner })
@@ -67,7 +30,7 @@ validator subscription(
     
     let elapsed = current_time - datum.start_time
     
-    // Calculate penalty percentage and return amounts based on elapsed time
+    // Calculate penalty percentage and return amounts
     let (admin_amount, user_amount) =
       if elapsed < penalty_period_1 {
         // Less than 10 days: 30% penalty
@@ -84,61 +47,49 @@ validator subscription(
       }
 
     // 3. Verify the NFT is being burned
-    expect list.has_length(
-      value.tokens(mint, value.policy_id(policy_id_from_mint_purpose(ctx))),
-      1,
-    )
+    expect list.has_length(value.tokens(mint, #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef"), 1)
     
-    expect [token_name, amount] =
-      value.tokens(mint, value.policy_id(policy_id_from_mint_purpose(ctx)))
-        |> dict.to_list()
+    expect [token_name, amount] = 
+      value.tokens(mint, #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef") |> dict.to_list()
         
     expect amount == -1
     
     // 4. Verify the penalty distribution
     let admin_output_opt = 
-      list.find(
-        outputs,
-        fn(output) {
-          output.address.payment_credential == VerificationKey(admin) 
-        },
-      )
+      list.find(outputs, fn(output) {
+        output.address.payment_credential == VerificationKey(admin) 
+      })
       
     let user_output_opt =
-      list.find(
-        outputs,
-        fn(output) {
-          output.address.payment_credential == VerificationKey(datum.owner)
-        },
-      )
+      list.find(outputs, fn(output) {
+        output.address.payment_credential == VerificationKey(datum.owner)
+      })
     
     // Admin output might not exist if penalty is 0
     when admin_amount is {
       0 -> 
         expect Some(user_output) = user_output_opt
-        check_output_amount(user_output, talos_policy_id, talos_asset_name, user_amount)
+        value.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount
       _ -> 
         expect Some(admin_output) = admin_output_opt
         expect Some(user_output) = user_output_opt
-        check_output_amount(admin_output, talos_policy_id, talos_asset_name, admin_amount) &&
-          check_output_amount(user_output, talos_policy_id, talos_asset_name, user_amount)
+        value.quantity_of(admin_output.value, talos_policy_id, talos_asset_name) == admin_amount &&
+        value.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount
     }
   }
+}
 
-  // Minting policy
+validator {
   fn mint(redeemer: MintAction, ctx: ScriptContext) -> Bool {
     let ScriptContext { transaction, purpose } = ctx
-    
     let Transaction { outputs, mint, .. } = transaction
     
-    let policy_id = value.policy_id(policy_id_from_mint_purpose(ctx))
+    let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
+    let talos_asset_name: ByteArray = #"74616c6f73"
     
-    let minted_assets = 
-      value.tokens(mint, policy_id)
-        |> dict.to_list()
+    let minted_assets = value.tokens(mint, #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef") |> dict.to_list()
     
     expect list.has_length(minted_assets, 1)
-    
     expect [(token_name, amount)] = minted_assets
     
     when redeemer is {
@@ -147,22 +98,9 @@ validator subscription(
         expect amount == 1
         
         // Validate there's an output locking 10000 TALOS at this script
-        list.any(
-          outputs,
-          fn(output) {
-            let credential_matches = 
-              output.address.payment_credential == script_credential_from_spend_purpose(ctx)
-            
-            let amount_matches =
-              value.quantity_of(
-                output.value,
-                talos_policy_id,
-                talos_asset_name,
-              ) == subscription_amount
-            
-            credential_matches && amount_matches
-          },
-        )
+        list.any(outputs, fn(output) {
+          value.quantity_of(output.value, talos_policy_id, talos_asset_name) == subscription_amount
+        })
       }
       
       MintAction.Unsubscribe -> {
