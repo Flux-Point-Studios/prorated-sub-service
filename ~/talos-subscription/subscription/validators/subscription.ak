@@ -10,7 +10,7 @@ use subscription/lib/subscription.{
 }
 
 // Spending validator
-validator fn spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext) -> Bool {
+validator spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext) {
   let ScriptContext { transaction, purpose } = ctx
   let Transaction { outputs, mint, extra_signatories, validity_range, .. } = transaction
   
@@ -79,7 +79,7 @@ validator fn spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext
 }
 
 // Minting policy
-validator fn mint(redeemer: MintAction, ctx: ScriptContext) -> Bool {
+validator mint(redeemer: MintAction, ctx: ScriptContext) {
   let ScriptContext { transaction, purpose } = ctx
   let Transaction { outputs, mint, .. } = transaction
   
