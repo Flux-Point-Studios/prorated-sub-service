@@ -9,7 +9,8 @@ use subscription/lib/subscription.{
   subscription_amount, subscription_period,
 }
 
-validator fn spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext) -> Bool {
+// Spending validator
+validator spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext) -> Bool {
   let ScriptContext { transaction, purpose } = ctx
   let Transaction { outputs, mint, extra_signatories, validity_range, .. } = transaction
   
@@ -77,7 +78,8 @@ validator fn spend(datum: SubscriptionDatum, _redeemer: Data, ctx: ScriptContext
   }
 }
 
-validator fn mint(redeemer: MintAction, ctx: ScriptContext) -> Bool {
+// Minting policy
+validator mint(redeemer: MintAction, ctx: ScriptContext) -> Bool {
   let ScriptContext { transaction, purpose } = ctx
   let Transaction { outputs, mint, .. } = transaction
   
@@ -109,29 +111,3 @@ validator fn mint(redeemer: MintAction, ctx: ScriptContext) -> Bool {
     }
   }
 }
-
-// Helper function to get policy ID from mint purpose
-fn policy_id_from_mint_purpose(ctx: ScriptContext) -> ByteArray {
-  when ctx.purpose is {
-    transaction.Mint(policy_id) -> policy_id
-    _ -> error(@"Not in minting context")
-  }
-}
-
-// Helper function to get script credential from spend purpose
-fn script_credential_from_spend_purpose(ctx: ScriptContext) -> transaction.credential.Credential {
-  when ctx.purpose is {
-    transaction.Spend(output_ref) -> ScriptCredential(output_ref.transaction_id)
-    _ -> error(@"Not in spending context")
-  }
-}
-
-// Helper to check if an output contains the expected amount of tokens
-fn check_output_amount(
-  output: transaction.Output,
-  policy_id: ByteArray,
-  asset_name: ByteArray,
-  expected_amount: Int,
-) -> Bool {
-  value.quantity_of(output.value, policy_id, asset_name) == expected_amount
-} 
