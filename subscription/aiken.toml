@@ -13,7 +13,7 @@ url = "https://github.com/talos/prorated-sub-service"
 
 [[dependencies]]
 name = "aiken-lang/stdlib"
-version = "1.7.0"
+version = "2.1.0"
 source = "github"
 
 [config]
