@@ -61,182 +61,182 @@ pub fn check_subscription(datum: SubscriptionDatum, tx_interval: Interval<Int>) 
 
 /// Calculate penalty based on elapsed time
 pub fn calculate_penalty(elapsed: Int) -> (Int, Int) {
-  if elapsed < penalty_period_1 {
-    (subscription_amount * 30 / 100, subscription_amount * 70 / 100)
-  } else if elapsed < penalty_period_2 {
-    (subscription_amount * 20 / 100, subscription_amount * 80 / 100)
-  } else if elapsed < subscription_period {
-    (subscription_amount * 10 / 100, subscription_amount * 90 / 100)
-  } else {
-    (0, subscription_amount)
-  }
+    if elapsed < penalty_period_1 {
+        (subscription_amount * 30 / 100, subscription_amount * 70 / 100)
+    } else if elapsed < penalty_period_2 {
+        (subscription_amount * 20 / 100, subscription_amount * 80 / 100)
+    } else if elapsed < subscription_period {
+        (subscription_amount * 10 / 100, subscription_amount * 90 / 100)
+    } else {
+        (0, subscription_amount)
+    }
 }
 
 validator subscription {
-  /// Handle spending from the subscription
-  spend(datum_opt: Option<SubscriptionDatum>, redeemer: Action, input: OutputReference, tx: Transaction) {
-    let Transaction { inputs, outputs, validity_range, extra_signatories, .. } = tx
+    /// Handle spending from the subscription
+    spend(datum_opt: Option<SubscriptionDatum>, redeemer: Action, input: OutputReference, tx: Transaction) {
+        let Transaction { inputs, outputs, validity_range, extra_signatories, .. } = tx
 
-    expect Some(datum) = datum_opt
-    expect Some(Input{ output_reference: _, output: old_output }) = find_input(inputs, input)
-    let script_addr = old_output.address
-    let script_outputs = filter(outputs, fn (o: Output) { o.address == script_addr })
+        expect Some(datum) = datum_opt
+        expect Some(Input{ output_reference: _, output: old_output }) = find_input(inputs, input)
+        let script_addr = old_output.address
+        let script_outputs = filter(outputs, fn (o: Output) { o.address == script_addr })
+
+        // Extract lower bound for time-sensitive operations
+        let Interval { lower_bound, .. } = validity_range
+        expect IntervalBound { bound_type: Finite(current_time), .. } = lower_bound
+
+        when redeemer is {
+            Extend { additional_intervals } -> {
+                expect False = list.is_empty(script_outputs)
+                expect 1 = list.length(script_outputs)
+                expect Some(new_output) = list.head(script_outputs)
+                expect InlineDatum(data) = new_output.datum
+                expect new_datum: SubscriptionDatum = data
+                
+                and {
+                    // Only subscriber can extend
+                    has(extra_signatories, datum.subscriber_key_hash),
+                    // There must still be an ongoing subscription (before original end)
+                    check_subscription(datum, validity_range),
+                    // Subscription end should be extended correctly
+                    new_datum.subscription_end == datum.subscription_end + additional_intervals * datum.interval_length,
+                    new_datum.original_subscription_end == datum.original_subscription_end,
+                    // Number of installments should increase by the added intervals
+                    list.length(new_datum.installments) == list.length(datum.installments) + additional_intervals,
+                }
+            }
+            MerchantWithdraw -> {
+                expect datum.installments != [] 
+                expect [due, ..remaining] = datum.installments
+                expect 1 = list.length(script_outputs)
+                expect Some(new_output) = list.head(script_outputs)
+                expect InlineDatum(data) = new_output.datum
+                expect new_datum: SubscriptionDatum = data
+                
+                and {
+                    // Only merchant can withdraw installments
+                    has(extra_signatories, datum.merchant_key_hash),
+                    // At least one installment is due
+                    contains(validity_range, due.claimable_at),
+                    // The new datum should have removed the claimed installment
+                    new_datum.installments == remaining,
+                }
+            }
+            Unsubscribe -> {
+                // Only subscriber can unsubscribe (early terminate)
+                expect True = has(extra_signatories, datum.subscriber_key_hash)
+                // Subscription must still be active
+                expect True = check_subscription(datum, validity_range)
+                
+                // Calculate penalty based on elapsed time using lower bound
+                let elapsed = current_time - datum.subscription_start
+                let (admin_amount, user_amount) = calculate_penalty(elapsed)
+                
+                // Define token policies and names
+                let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
+                let talos_asset_name: ByteArray = #"74616c6f73"
+                let admin: ByteArray = #"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+                
+                // Verify the NFT is being burned
+                let nft_policy_id = #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                let nft_tokens = assets.tokens(tx.mint, nft_policy_id) |> dict.to_pairs()
+                expect list.length(nft_tokens) == 1
+                
+                // Get the single asset and amount (discard token name)
+                expect [Pair(_token_name, amount)] = nft_tokens
+                expect amount == -1
+                
+                // Verify the penalty distribution
+                let admin_output_opt = 
+                    list.find(outputs, fn(output) {
+                        output.address.payment_credential == Credential.VerificationKey(admin)
+                    })
+                    
+                let user_output_opt =
+                    list.find(outputs, fn(output) {
+                        output.address.payment_credential == Credential.VerificationKey(datum.subscriber_key_hash)
+                    })
+                
+                // Admin output might not exist if penalty is 0
+                when admin_amount is {
+                    0 -> {
+                        expect Some(user_output) = user_output_opt
+                        assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount
+                    }
+                    _ -> {
+                        expect Some(admin_output) = admin_output_opt
+                        expect Some(user_output) = user_output_opt
+                        and {
+                            assets.quantity_of(admin_output.value, talos_policy_id, talos_asset_name) == admin_amount,
+                            assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount,
+                        }
+                    }
+                }
+            }
+            SubscriberWithdraw -> {
+                expect datum.installments != []
+                
+                and {
+                    // Only subscriber can withdraw remaining funds after subscription end
+                    has(extra_signatories, datum.subscriber_key_hash),
+                    // Ensure transaction time is after subscription end
+                    current_time >= datum.subscription_end,
+                    // No output should remain (closing out subscription)
+                    list.is_empty(script_outputs),
+                }
+            }
+        }
+    }
     
-    // For certain actions that need current time, extract it safely
-    let Interval { lower_bound, .. } = validity_range
-    expect IntervalBound { bound_type: Finite(now), .. } = lower_bound
-
-    when redeemer is {
-      Extend { additional_intervals } -> {
-        expect False = list.is_empty(script_outputs)
-        expect 1 = list.length(script_outputs)
-        expect Some(new_output) = list.head(script_outputs)
-        expect InlineDatum(data) = new_output.datum
-        expect new_datum: SubscriptionDatum = data
-        
-        and {
-          // Only subscriber can extend
-          has(extra_signatories, datum.subscriber_key_hash),
-          // There must still be an ongoing subscription (before original end)
-          check_subscription(datum, validity_range),
-          // Subscription end should be extended correctly
-          new_datum.subscription_end == datum.subscription_end + additional_intervals * datum.interval_length,
-          new_datum.original_subscription_end == datum.original_subscription_end,
-          // Number of installments should increase by the added intervals
-          list.length(new_datum.installments) == list.length(datum.installments) + additional_intervals,
-        }
-      }
-      MerchantWithdraw -> {
-        expect datum.installments != [] 
-        expect [due, ..remaining] = datum.installments
-        expect 1 = list.length(script_outputs)
-        expect Some(new_output) = list.head(script_outputs)
-        expect InlineDatum(data) = new_output.datum
-        expect new_datum: SubscriptionDatum = data
-        
-        and {
-          // Only merchant can withdraw installments
-          has(extra_signatories, datum.merchant_key_hash),
-          // At least one installment is due
-          contains(validity_range, due.claimable_at),
-          // The new datum should have removed the claimed installment
-          new_datum.installments == remaining,
-        }
-      }
-      Unsubscribe -> {
-        // Only subscriber can unsubscribe (early terminate)
-        expect True = has(extra_signatories, datum.subscriber_key_hash)
-        // Subscription must still be active
-        expect True = check_subscription(datum, validity_range)
-        
-        // Calculate penalty based on elapsed time
-        let elapsed = now - datum.subscription_start
-        let (admin_amount, user_amount) = calculate_penalty(elapsed)
-        
-        // Define token policies and names
+    /// Handle minting of NFT tokens for subscription
+    mint(
+        redeemer: MintAction,
+        policy_id: PolicyId,
+        tx: Transaction,
+    ) {
         let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
         let talos_asset_name: ByteArray = #"74616c6f73"
-        let admin: ByteArray = #"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
         
-        // Verify the NFT is being burned
-        let nft_policy_id = #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        let nft_tokens = assets.tokens(tx.mint, nft_policy_id) |> dict.to_pairs()
-        expect list.length(nft_tokens) == 1
+        let outputs = tx.outputs
+        let mint = tx.mint
         
-        // Get the single asset and amount (discard token name)
-        expect [Pair(_token_name, amount)] = nft_tokens
-        expect amount == -1
+        let minted_assets = assets.tokens(mint, policy_id) |> dict.to_pairs()
+        expect list.length(minted_assets) == 1
+        expect [Pair(_token_name, amount)] = minted_assets
         
-        // Verify the penalty distribution
-        let admin_output_opt = 
-          list.find(outputs, fn(output) {
-            output.address.payment_credential == Credential.VerificationKey(admin)
-          })
-          
-        let user_output_opt =
-          list.find(outputs, fn(output) {
-            output.address.payment_credential == Credential.VerificationKey(datum.subscriber_key_hash)
-          })
-        
-        // Admin output might not exist if penalty is 0
-        when admin_amount is {
-          0 -> {
-            expect Some(user_output) = user_output_opt
-            assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount
-          }
-          _ -> {
-            expect Some(admin_output) = admin_output_opt
-            expect Some(user_output) = user_output_opt
-            and {
-              assets.quantity_of(admin_output.value, talos_policy_id, talos_asset_name) == admin_amount,
-              assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount,
+        when redeemer is {
+            Subscribe -> {
+                expect amount == 1
+                list.any(outputs, fn(output) {
+                    assets.quantity_of(output.value, talos_policy_id, talos_asset_name) == subscription_amount
+                })
             }
-          }
+            CancelSubscription -> {
+                expect amount == -1
+                True
+            }
         }
-      }
-      SubscriberWithdraw -> {
-        expect datum.installments != []
-        
-        and {
-          // Only subscriber can withdraw remaining funds after subscription end
-          has(extra_signatories, datum.subscriber_key_hash),
-          // Check that the validity interval is after subscription end
-          hull(validity_range, interval.between(datum.subscription_end, datum.subscription_end)) == validity_range,
-          // No output should remain (closing out subscription)
-          list.is_empty(script_outputs),
-        }
-      }
     }
-  }
-  
-  /// Handle minting of NFT tokens for subscription
-  mint(
-    redeemer: MintAction,
-    policy_id: PolicyId,
-    tx: Transaction,
-  ) {
-    let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
-    let talos_asset_name: ByteArray = #"74616c6f73"
     
-    let outputs = tx.outputs
-    let mint = tx.mint
-    
-    let minted_assets = assets.tokens(mint, policy_id) |> dict.to_pairs()
-    expect list.length(minted_assets) == 1
-    expect [Pair(_token_name, amount)] = minted_assets
-    
-    when redeemer is {
-      Subscribe -> {
-        expect amount == 1
-        list.any(outputs, fn(output) {
-          assets.quantity_of(output.value, talos_policy_id, talos_asset_name) == subscription_amount
-        })
-      }
-      CancelSubscription -> {
-        expect amount == -1
-        True
-      }
+    else(_) {
+        fail
     }
-  }
-  
-  else(_) {
-    fail
-  }
 }
 
 /// Test if a subscription is active within its validity period
 test subscription_active() {
-  let test_interval = between(100, 100)
-  let test_datum = SubscriptionDatum {
-    service_fee: 1000,
-    penalty_fee: 500,
-    interval_length: 30,
-    subscription_start: 0,
-    subscription_end: 200,
-    original_subscription_end: 200,
-    installments: [],
-    merchant_key_hash: #"deadbeef",
-    subscriber_key_hash: #"deadbeef",
-  }
-  check_subscription(test_datum, test_interval) == True
+    let test_interval = between(100, 100)
+    let test_datum = SubscriptionDatum {
+        service_fee: 1000,
+        penalty_fee: 500,
+        interval_length: 30,
+        subscription_start: 0,
+        subscription_end: 200,
+        original_subscription_end: 200,
+        installments: [],
+        merchant_key_hash: #"deadbeef",
+        subscriber_key_hash: #"deadbeef",
+    }
+    check_subscription(test_datum, test_interval) == True
 }
