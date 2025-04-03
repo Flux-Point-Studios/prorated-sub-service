@@ -1,9 +1,10 @@
 use aiken/collection/list.{filter, has}
 use aiken/collection/dict
 use aiken/crypto.{VerificationKeyHash}
-use aiken/interval.{Finite, Interval, IntervalBound}
+use aiken/interval.{Finite, Interval, IntervalBound, contains, hull, between}
 use cardano/transaction.{Output, OutputReference, Transaction, Input, find_input, InlineDatum}
-use cardano/assets.{PolicyId, AssetName}
+use cardano/assets
+use cardano/assets.{PolicyId}
 use cardano/address.{Credential}
 
 /// Data structure representing a single payment installment
@@ -52,23 +53,10 @@ pub const penalty_period_2: Int = 20 * day_in_ms // 20 days in ms
 pub const subscription_period: Int = 30 * day_in_ms // 30 days in ms
 pub const subscription_amount: Int = 10000 
 
-/// Check if a subscription is active at the given time
-pub fn check_subscription(datum: SubscriptionDatum, now: Int) -> Bool {
-    datum.subscription_start <= now && now <= datum.subscription_end
-}
-
-/// Get the token amount from an output for a specific asset
-pub fn get_token_amount(output: Output, policy_id: PolicyId, asset_name: AssetName) -> Int {
-  when list.find(dict.to_pairs(assets.tokens(output.value, policy_id)), fn(pair) {
-    let Pair(name, _) = pair
-    name == asset_name 
-  }) is {
-    Some(pair) -> {
-      let Pair(_, amount) = pair
-      amount
-    }
-    None -> 0
-  }
+/// Check if a transaction validity interval is contained within the subscription period
+pub fn check_subscription(datum: SubscriptionDatum, tx_interval: Interval<Int>) -> Bool {
+    let subscription_interval = between(datum.subscription_start, datum.subscription_end)
+    hull(tx_interval, subscription_interval) == subscription_interval
 }
 
 /// Calculate penalty based on elapsed time
@@ -93,51 +81,53 @@ validator subscription {
     expect Some(Input{ output_reference: _, output: old_output }) = find_input(inputs, input)
     let script_addr = old_output.address
     let script_outputs = filter(outputs, fn (o: Output) { o.address == script_addr })
-    // Get current time (lower bound of the validity range)
+    
+    // For certain actions that need current time, extract it safely
     let Interval { lower_bound, .. } = validity_range
     expect IntervalBound { bound_type: Finite(now), .. } = lower_bound
 
     when redeemer is {
       Extend { additional_intervals } -> {
-        // Only subscriber can extend
-        expect True = has(extra_signatories, datum.subscriber_key_hash)
-        // There must still be an ongoing subscription (before original end)
-        expect True = check_subscription(datum, now)
-        // Ensure exactly one new output remains at the script address
         expect False = list.is_empty(script_outputs)
         expect 1 = list.length(script_outputs)
         expect Some(new_output) = list.head(script_outputs)
-        // Verify the datum of the new output
         expect InlineDatum(data) = new_output.datum
         expect new_datum: SubscriptionDatum = data
-        // Subscription end should be extended correctly
-        expect new_datum.subscription_end == datum.subscription_end + additional_intervals * datum.interval_length
-        expect new_datum.original_subscription_end == datum.original_subscription_end
-        // Number of installments should increase by the added intervals
-        expect list.length(new_datum.installments) == list.length(datum.installments) + additional_intervals
-        True
+        
+        and {
+          // Only subscriber can extend
+          has(extra_signatories, datum.subscriber_key_hash),
+          // There must still be an ongoing subscription (before original end)
+          check_subscription(datum, validity_range),
+          // Subscription end should be extended correctly
+          new_datum.subscription_end == datum.subscription_end + additional_intervals * datum.interval_length,
+          new_datum.original_subscription_end == datum.original_subscription_end,
+          // Number of installments should increase by the added intervals
+          list.length(new_datum.installments) == list.length(datum.installments) + additional_intervals,
+        }
       }
       MerchantWithdraw -> {
-        // Only merchant can withdraw installments
-        expect True = has(extra_signatories, datum.merchant_key_hash)
-        // At least one installment is due
         expect datum.installments != [] 
         expect [due, ..remaining] = datum.installments
-        expect now >= due.claimable_at
-        // One new output must remain at script (subscription continues)
         expect 1 = list.length(script_outputs)
         expect Some(new_output) = list.head(script_outputs)
         expect InlineDatum(data) = new_output.datum
         expect new_datum: SubscriptionDatum = data
-        // The new datum should have removed the claimed installment
-        expect new_datum.installments == remaining
-        True
+        
+        and {
+          // Only merchant can withdraw installments
+          has(extra_signatories, datum.merchant_key_hash),
+          // At least one installment is due
+          contains(validity_range, due.claimable_at),
+          // The new datum should have removed the claimed installment
+          new_datum.installments == remaining,
+        }
       }
       Unsubscribe -> {
         // Only subscriber can unsubscribe (early terminate)
         expect True = has(extra_signatories, datum.subscriber_key_hash)
-        // Subscription must still be active (before end)
-        expect True = check_subscription(datum, now)
+        // Subscription must still be active
+        expect True = check_subscription(datum, validity_range)
         
         // Calculate penalty based on elapsed time
         let elapsed = now - datum.subscription_start
@@ -172,26 +162,29 @@ validator subscription {
         when admin_amount is {
           0 -> {
             expect Some(user_output) = user_output_opt
-            get_token_amount(user_output, talos_policy_id, talos_asset_name) == user_amount
+            assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount
           }
           _ -> {
             expect Some(admin_output) = admin_output_opt
             expect Some(user_output) = user_output_opt
-            get_token_amount(admin_output, talos_policy_id, talos_asset_name) == admin_amount &&
-            get_token_amount(user_output, talos_policy_id, talos_asset_name) == user_amount
+            and {
+              assets.quantity_of(admin_output.value, talos_policy_id, talos_asset_name) == admin_amount,
+              assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount,
+            }
           }
         }
       }
       SubscriberWithdraw -> {
-        // Only subscriber can withdraw remaining funds after subscription end
-        expect True = has(extra_signatories, datum.subscriber_key_hash)
-        // Only allow after subscription period has ended
-        expect now >= datum.subscription_end
-        // There must be installments left unclaimed by merchant
         expect datum.installments != []
-        // No output should remain (closing out subscription)
-        expect True = list.is_empty(script_outputs)
-        True
+        
+        and {
+          // Only subscriber can withdraw remaining funds after subscription end
+          has(extra_signatories, datum.subscriber_key_hash),
+          // Check that the validity interval is after subscription end
+          hull(validity_range, interval.between(datum.subscription_end, datum.subscription_end)) == validity_range,
+          // No output should remain (closing out subscription)
+          list.is_empty(script_outputs),
+        }
       }
     }
   }
@@ -216,7 +209,7 @@ validator subscription {
       Subscribe -> {
         expect amount == 1
         list.any(outputs, fn(output) {
-          get_token_amount(output, talos_policy_id, talos_asset_name) == subscription_amount
+          assets.quantity_of(output.value, talos_policy_id, talos_asset_name) == subscription_amount
         })
       }
       CancelSubscription -> {
@@ -233,7 +226,7 @@ validator subscription {
 
 /// Test if a subscription is active within its validity period
 test subscription_active() {
-  let now = 100
+  let test_interval = between(100, 100)
   let test_datum = SubscriptionDatum {
     service_fee: 1000,
     penalty_fee: 500,
@@ -245,5 +238,5 @@ test subscription_active() {
     merchant_key_hash: #"deadbeef",
     subscriber_key_hash: #"deadbeef",
   }
-  check_subscription(test_datum, now) == True
+  check_subscription(test_datum, test_interval) == True
 }
