@@ -109,16 +109,38 @@ The function returns a tuple: (admin_amount, user_amount).
 
 ## Security Considerations
 
-### Time-based Validation
+### Interval-based Time Validation
 
-The contract uses the transaction validity interval to validate the current time:
+The contract uses transaction validity intervals to validate time constraints, preventing time-travel attacks:
 
 ```aiken
-let Interval { lower_bound, .. } = validity_range
-expect IntervalBound { bound_type: Finite(now), .. } = lower_bound
+pub fn check_subscription(datum: SubscriptionDatum, tx_interval: Interval<Int>) -> Bool {
+    let subscription_interval = between(datum.subscription_start, datum.subscription_end)
+    hull(tx_interval, subscription_interval) == subscription_interval
+}
 ```
 
-This approach ensures that time calculations are based on the blockchain's view of time, not off-chain estimates.
+This ensures the transaction's validity interval is fully contained within the subscription period, preventing manipulation of the blockchain's time constraints.
+
+### Structured Validation Logic
+
+The contract separates structural validation from business logic using `and {}` blocks:
+
+```aiken
+and {
+  // Only subscriber can extend
+  has(extra_signatories, datum.subscriber_key_hash),
+  // There must still be an ongoing subscription (before original end)
+  check_subscription(datum, validity_range),
+  // Subscription end should be extended correctly
+  new_datum.subscription_end == datum.subscription_end + additional_intervals * datum.interval_length,
+  new_datum.original_subscription_end == datum.original_subscription_end,
+  // Number of installments should increase by the added intervals
+  list.length(new_datum.installments) == list.length(datum.installments) + additional_intervals,
+}
+```
+
+This pattern makes the validation intent clearer and improves code readability.
 
 ### Signature Verification
 
@@ -128,11 +150,13 @@ All actions require appropriate signatures:
 
 ### Token Verification
 
-The contract checks that tokens are properly distributed when a subscription is terminated:
+The contract checks that tokens are properly distributed when a subscription is terminated using Cardano's native asset quantity functions:
 
 ```aiken
-get_token_amount(admin_output, talos_policy_id, talos_asset_name) == admin_amount &&
-get_token_amount(user_output, talos_policy_id, talos_asset_name) == user_amount
+and {
+  assets.quantity_of(admin_output.value, talos_policy_id, talos_asset_name) == admin_amount,
+  assets.quantity_of(user_output.value, talos_policy_id, talos_asset_name) == user_amount,
+}
 ```
 
 ## Integration Guide
@@ -145,6 +169,7 @@ To interact with the contract, you'll need to construct transactions that:
 2. Include required signatures
 3. Attach correct datum values
 4. Satisfy the validator conditions
+5. Set appropriate validity intervals that fall within subscription periods
 
 ### Transaction Construction
 
@@ -158,6 +183,7 @@ For withdrawal:
 2. Include a valid datum
 3. Provide the required signature
 4. Distribute tokens according to the contract rules
+5. Set a validity interval appropriate for the action being performed
 
 ## Testing
 
@@ -165,7 +191,7 @@ The contract includes a test suite to verify core functionality:
 
 ```aiken
 test subscription_active() {
-  let now = 100
+  let test_interval = between(100, 100)
   let test_datum = SubscriptionDatum {
     service_fee: 1000,
     penalty_fee: 500,
@@ -177,7 +203,7 @@ test subscription_active() {
     merchant_key_hash: #"deadbeef",
     subscriber_key_hash: #"deadbeef",
   }
-  check_subscription(test_datum, now) == True
+  check_subscription(test_datum, test_interval) == True
 }
 ```
 

@@ -10,6 +10,7 @@ This project implements a token-based subscription service on Cardano with the f
 - NFT certificates for active subscriptions
 - Prorated refund system with decreasing penalties
 - Trustless, on-chain validation of all subscription operations
+- Secure interval-based time validation
 
 ## Project Status ✅
 
@@ -23,6 +24,8 @@ The project has been successfully implemented and compiled with Aiken. All tests
 - ✅ Token distribution validation
 - ✅ Unit tests
 - ✅ Development environment setup
+- ✅ Security improvements against time-travel attacks
+- ✅ Enhanced code structure using logical blocks
 
 ### Next Steps:
 
@@ -53,13 +56,19 @@ Early withdrawal incurs a penalty based on elapsed time:
 
 Penalties are automatically distributed to an admin address.
 
+### Security Features
+
+- **Interval-based time validation**: Prevents time-travel attacks by requiring transaction validity intervals to be contained within subscription periods
+- **Structured validation logic**: Clear separation between structural validation and business logic
+- **Proper asset quantity validation**: Uses native Cardano asset quantity validation for accurate token accounting
+
 ## Project Structure
 
 ```
 prorated-sub-service/
 ├── subscription/
 │   ├── validators/
-│   │   └── subscription_test.ak  # Main validator script with tests
+│   │   └── subscription_prorated.ak  # Main validator script with tests
 │   ├── scripts/                  # Off-chain helper scripts
 │   │   ├── subscribe.js          # Script to create subscription
 │   │   └── withdraw.js           # Script to withdraw funds
@@ -75,7 +84,7 @@ prorated-sub-service/
 1. **Setup Environment**:
    ```bash
    # Install Aiken
-   nix profile install github:aiken-lang/aiken
+   curl -sSfL https://install.aiken-lang.org | bash
    ```
 
 2. **Compile Contract**:

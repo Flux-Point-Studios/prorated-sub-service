@@ -4,7 +4,17 @@ This guide provides instructions for setting up and compiling the TALOS Subscrip
 
 ## Environment Setup Options
 
-### Option 1: Ubuntu/Linux Environment (Recommended)
+### Option 1: Direct Installation (Recommended)
+
+```bash
+# Install Aiken using the official installer
+curl -sSfL https://install.aiken-lang.org | bash
+
+# Verify installation
+aiken --version
+```
+
+### Option 2: Ubuntu/Linux Environment with Nix
 
 ```bash
 # Update package lists
@@ -30,7 +40,7 @@ nix profile install github:aiken-lang/aiken
 aiken --version
 ```
 
-### Option 2: Windows with WSL
+### Option 3: Windows with WSL
 
 1. Install WSL if not already installed:
    ```powershell
@@ -86,6 +96,7 @@ Collecting all tests scenarios across all modules
 2. **Aiken Syntax Errors**
    - Verify that the code uses current Aiken syntax (≥ 1.0.0)
    - Check pattern matching syntax in particular
+   - Make sure interval operations use correct parameter types and order
 
 3. **Path Issues**
    - Ensure the correct directory structure as shown in the README.md
