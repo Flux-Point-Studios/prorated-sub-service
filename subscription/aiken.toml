@@ -16,4 +16,25 @@ name = "aiken-lang/stdlib"
 version = "2.1.0"
 source = "github"
 
+
+[[blueprint.parameters]]
+name = "talos_policy_id"
+type = "ByteArray"
+description = "Policy ID for the TALOS token."
+
+[[blueprint.parameters]]
+name = "talos_asset_name"
+type = "ByteArray"
+description = "Asset name for the TALOS token."
+
+[[blueprint.parameters]]
+name = "admin"
+type = "VerificationKeyHash"
+description = "Admin public key hash authorized to receive penalty fees."
+
+[[blueprint.parameters]]
+name = "nft_policy_id"
+type = "PolicyId"
+description = "Policy ID for the Subscription NFT."
+
 [config]
