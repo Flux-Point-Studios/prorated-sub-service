@@ -16,6 +16,11 @@ name = "aiken-lang/stdlib"
 version = "2.1.0"
 source = "github"
 
+# We also need the cardano library for cardano/transaction, cardano/assets, etc.
+[[dependencies]]
+name = "aiken-lang/cardano"
+version = "2.1.0"
+source = "github"
 
 [[blueprint.parameters]]
 name = "talos_policy_id"
