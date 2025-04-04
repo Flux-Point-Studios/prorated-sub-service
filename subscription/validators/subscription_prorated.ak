@@ -108,25 +108,33 @@ pub fn verify_nft_burning(mint, policy_id: PolicyId) -> Bool {
     }
 }
 
-validator subscription {
+/// Main subscription validator, parameterized for flexible usage
+validator subscription(
+    /// Policy ID for the Talos asset (32-byte script hash)
+    talos_policy_id: ByteArray,
+    /// Asset name for the Talos token (e.g. \"74616c6f73\" for \"talos\")
+    talos_asset_name: ByteArray,
+    /// Verification key hash of the administrator (used in penalty distribution)
+    admin: VerificationKeyHash,
+    /// Policy ID for the subscription NFT
+    nft_policy_id: PolicyId
+) {
     /// Handle spending from the subscription
     spend(datum_opt: Option<SubscriptionDatum>, redeemer: Action, input: OutputReference, tx: Transaction) {
         let Transaction { inputs, outputs, validity_range, extra_signatories, mint, .. } = tx
 
+        // Ensure the SubscriptionDatum exists in the spending input
         expect Some(datum) = datum_opt
+        
+        // Retrieve the input being spent (the old UTxO protected by this validator)
         expect Some(Input{ output_reference: _, output: old_output }) = find_input(inputs, input)
+        
         let script_addr = old_output.address
         let script_outputs = filter(outputs, fn (o: Output) { o.address == script_addr })
 
         // Extract lower bound for time-sensitive operations
         let Interval { lower_bound, .. } = validity_range
         expect IntervalBound { bound_type: Finite(current_time), .. } = lower_bound
-
-        // Define token policies and names (constants)
-        let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
-        let talos_asset_name: ByteArray = #"74616c6f73"
-        let admin: ByteArray = #"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-        let nft_policy_id = #"abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
         when redeemer is {
             Extend { additional_intervals } -> {
@@ -286,12 +294,10 @@ validator subscription {
         policy_id: PolicyId,
         tx: Transaction,
     ) {
-        let talos_policy_id: ByteArray = #"aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccdd" 
-        let talos_asset_name: ByteArray = #"74616c6f73"
-        
         let outputs = tx.outputs
         let mint = tx.mint
         
+        // Obtain the tokens minted under this policy
         let minted_assets = assets.tokens(mint, policy_id) |> dict.to_pairs()
         expect list.length(minted_assets) == 1
         expect [Pair(token_name, amount)] = minted_assets
