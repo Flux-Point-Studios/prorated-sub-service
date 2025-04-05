@@ -11,6 +11,8 @@ This project implements a token-based subscription service on Cardano with the f
 - Prorated refund system with decreasing penalties
 - Trustless, on-chain validation of all subscription operations
 - Secure interval-based time validation
+- Double-satisfaction protection for all transactions
+- Enhanced time handling to prevent manipulation attacks
 
 ## Project Status ✅
 
@@ -26,12 +28,12 @@ The project has been successfully implemented and compiled with Aiken. All tests
 - ✅ Development environment setup
 - ✅ Security improvements against time-travel attacks
 - ✅ Enhanced code structure using logical blocks
+- ✅ Security audit completed with no critical issues
+- ✅ Testnet deployment and validation
 
 ### Next Steps:
 
-- ✅ Testnet deployment and validation
 - Parameter configuration for production
-- Security audit
 - User interface integration
 
 ## Contract Design
@@ -45,6 +47,15 @@ The project has been successfully implemented and compiled with Aiken. All tests
    - **Full term**: After 30 days, tokens can be withdrawn without penalty
    - **Merchant withdrawal**: Subscription fees can be claimed by the merchant
 
+### Security Features
+
+- **Interval-based time validation**: Prevents time-travel attacks by requiring transaction validity intervals to be contained within subscription periods
+- **Double satisfaction protection**: Ensures each transaction can only consume one subscription UTxO
+- **Role-based time bounds**: Uses different validity interval bounds for merchant vs. subscriber actions
+- **Exact payment validation**: Verifies proper payment distribution to all parties
+- **Initial subscription deposit validation**: Ensures subscriptions are properly funded at creation
+- **NFT state management**: Uses NFTs to track subscription state with proper minting/burning
+
 ### Penalty Tiers
 
 Early withdrawal incurs a penalty based on elapsed time:
@@ -56,11 +67,16 @@ Early withdrawal incurs a penalty based on elapsed time:
 
 Penalties are automatically distributed to an admin address.
 
-### Security Features
+### Structured validation logic
 
-- **Interval-based time validation**: Prevents time-travel attacks by requiring transaction validity intervals to be contained within subscription periods
-- **Structured validation logic**: Clear separation between structural validation and business logic
-- **Proper asset quantity validation**: Uses native Cardano asset quantity validation for accurate token accounting
+The contract is organized into logical sections:
+- Subscription datum and types
+- Constants and penalty calculation
+- Time-handling helpers
+- Double satisfaction mitigation
+- Output value checking
+- NFT burning checks
+- Additional validations
 
 ## Project Structure
 
@@ -76,6 +92,7 @@ prorated-sub-service/
 │   └── aiken.lock                # Dependency lock file
 ├── README.md                     # This file
 ├── SETUP.md                      # Environment setup guide
+├── AUDIT.md                      # Security audit report
 └── DEVELOPER.md                  # Technical details for developers
 ```
 
