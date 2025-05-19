@@ -1,6 +1,6 @@
-# TALOS Subscription Service Setup Guide
+# AGENT Subscription Service Setup Guide
 
-This guide provides instructions for setting up and compiling the TALOS Subscription Service smart contract.
+This guide provides instructions for setting up and compiling the AGENT Subscription Service smart contract.
 
 ## Environment Setup Options
 
@@ -72,8 +72,8 @@ aiken blueprint
 Upon successful completion, you'll see output confirming the tests have passed:
 
 ```
-Compiling talos/subscription 0.1.0 (.)
-Resolving talos/subscription
+Compiling AGENT/subscription 0.1.0 (.)
+Resolving AGENT/subscription
   Fetched 1 package in 0.25s from cache
 Compiling aiken-lang/stdlib 2.1.0 (./build/packages/aiken-lang-stdlib)
 Collecting all tests scenarios across all modules

@@ -1,12 +1,12 @@
-# TALOS Subscription Service
+# AGENT Subscription Service
 
-A Cardano smart contract implementation for subscription services using TALOS tokens, built with Aiken.
+A Cardano smart contract implementation for subscription services using AGENT tokens, built with Aiken.
 
 ## Overview
 
 This project implements a token-based subscription service on Cardano with the following features:
 
-- Time-based subscription system using TALOS tokens
+- Time-based subscription system using AGENT tokens
 - NFT certificates for active subscriptions
 - Prorated refund system with decreasing penalties
 - Trustless, on-chain validation of all subscription operations
@@ -40,7 +40,7 @@ The project has been successfully implemented and compiled with Aiken. All tests
 
 ### Subscription Flow
 
-1. **Subscribe**: User locks TALOS tokens and receives an NFT certificate
+1. **Subscribe**: User locks AGENT tokens and receives an NFT certificate
 2. **Active Period**: Subscription remains active for 30 days
 3. **Withdrawal Options**:
    - **Early withdrawal**: Subscription can be terminated early with a penalty
@@ -205,8 +205,8 @@ For instructions on testing the deployed smart contract on the Cardano preprod t
 
 Before deployment, the following parameters need to be configured:
 
-- `talos_policy_id`: TALOS token policy ID
-- `talos_asset_name`: TALOS token asset name
+- `AGENT_policy_id`: AGENT token policy ID
+- `AGENT_asset_name`: AGENT token asset name
 - `admin`: Treasury wallet address for receiving penalties
 - `nft_policy_id`: Policy ID for subscription NFTs
 

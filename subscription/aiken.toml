@@ -1,12 +1,12 @@
-name = "talos/subscription"
+name = "agent/subscription"
 version = "0.1.0"
 compiler = "v1.1.15"
 plutus = "v3"
 license = "Apache-2.0"
-description = "Cardano smart contract-based subscription system for $TALOS token"
+description = "Cardano smart contract-based subscription system for $AGENT token"
 
 [repository]
-user = "talos"
+user = "agent"
 project = "subscription"
 platform = "github"
 
@@ -16,14 +16,14 @@ version = "v2"
 source = "github"
 
 [[blueprint.parameters]]
-name = "talos_policy_id"
+name = "agent_policy_id"
 type = "ByteArray"
-description = "Policy ID for the TALOS token."
+description = "Policy ID for the AGENT token."
 
 [[blueprint.parameters]]
-name = "talos_asset_name"
+name = "agent_asset_name"
 type = "ByteArray"
-description = "Asset name for the TALOS token."
+description = "Asset name for the AGENT token."
 
 [[blueprint.parameters]]
 name = "admin"

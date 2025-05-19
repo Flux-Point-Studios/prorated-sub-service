@@ -1,6 +1,6 @@
-# TALOS Subscription Service Testing Guide
+# AGENT Subscription Service Testing Guide
 
-This document provides instructions for testing the TALOS Subscription Service on the Cardano preprod testnet.
+This document provides instructions for testing the AGENT Subscription Service on the Cardano preprod testnet.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Before testing, ensure you have:
    - Validator address from the blueprint
    - NFT policy ID from the blueprint
    - Wallet addresses with test funds
-3. TALOS tokens on preprod (or use a test token with similar properties)
+3. AGENT tokens on preprod (or use a test token with similar properties)
 4. A funded wallet with the necessary signing keys
 
 ## Preparing Test Data
@@ -99,14 +99,14 @@ EOF
 
 ### Test Case 1: Create a Subscription
 
-This test creates a new subscription by locking TALOS tokens and minting an NFT certificate.
+This test creates a new subscription by locking AGENT tokens and minting an NFT certificate.
 
 ```bash
 # Set up environment variables
 VALIDATOR_ADDRESS="addr_test1..."  # Your validator address from plutus.json
 PAYMENT_ADDR=$(cat wallet/payment.addr)
-TALOS_POLICY_ID="..."  # Your TALOS token policy ID
-TALOS_ASSET_NAME="74616c6f73"  # "talos" in hex
+AGENT_POLICY_ID="..."  # Your AGENT token policy ID
+AGENT_ASSET_NAME="74616c6f73"  # "AGENT" in hex
 NFT_POLICY_ID="..."  # Your NFT policy ID from plutus.json
 MINT_POLICY_UTXO="YOUR_MINT_POLICY_UTXO#INDEX"
 PAYMENT_UTXO="YOUR_PAYMENT_UTXO#INDEX"  # A UTxO with sufficient funds
@@ -118,7 +118,7 @@ SUBSCRIPTION_ID=$(echo -n "sub$(date +%s)" | xxd -p)
 cardano-cli conway transaction build \
   --testnet-magic 1 \
   --tx-in $PAYMENT_UTXO \
-  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --tx-out-inline-datum-file subscription_datum.json \
   --mint "1 ${NFT_POLICY_ID}.${SUBSCRIPTION_ID}" \
   --mint-reference-tx-in-reference $MINT_POLICY_UTXO \
@@ -168,8 +168,8 @@ cardano-cli conway transaction build \
   --tx-in-reference-script-file $SUBSCRIPTION_UTXO \
   --tx-in-datum-file subscription_datum.json \
   --tx-in-redeemer-file unsubscribe_redeemer.json \
-  --tx-out "${ADMIN_ADDRESS}+2000000+300000 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
-  --tx-out "${PAYMENT_ADDR}+2000000+700000 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${ADMIN_ADDRESS}+2000000+300000 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
+  --tx-out "${PAYMENT_ADDR}+2000000+700000 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --mint "-1 ${NFT_POLICY_ID}.${SUBSCRIPTION_ID}" \
   --mint-reference-tx-in-reference $MINT_POLICY_UTXO \
   --mint-reference-tx-in-redeemer-file mint_burn.json \
@@ -221,7 +221,7 @@ cardano-cli conway transaction build \
   --tx-in-reference-script-file $SUBSCRIPTION_UTXO \
   --tx-in-datum-file subscription_datum.json \
   --tx-in-redeemer-file merchant_withdraw_redeemer.json \
-  --tx-out "${MERCHANT_ADDRESS}+2000000+1000000 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${MERCHANT_ADDRESS}+2000000+1000000 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --required-signer-hash $MERCHANT_KEY_HASH \
   --change-address $MERCHANT_ADDRESS \
   --out-file merchant_withdraw_tx.raw
@@ -257,7 +257,7 @@ cardano-cli conway transaction build \
   --tx-in-reference-script-file $SUBSCRIPTION_UTXO \
   --tx-in-datum-file subscription_datum.json \
   --tx-in-redeemer-file extend_redeemer.json \
-  --tx-out "${VALIDATOR_ADDRESS}+2000000+2 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${VALIDATOR_ADDRESS}+2000000+2 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --tx-out-inline-datum-file extended_datum.json \
   --required-signer-hash $SUBSCRIBER_KEY_HASH \
   --change-address $PAYMENT_ADDR \
@@ -289,7 +289,7 @@ cardano-cli conway transaction build \
   --tx-in-reference-script-file $SUBSCRIPTION_UTXO \
   --tx-in-datum-file subscription_datum.json \
   --tx-in-redeemer-file unsubscribe_redeemer.json \
-  --tx-out "${PAYMENT_ADDR}+2000000+1000000 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${PAYMENT_ADDR}+2000000+1000000 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --mint "-1 ${NFT_POLICY_ID}.${SUBSCRIPTION_ID}" \
   --mint-reference-tx-in-reference $MINT_POLICY_UTXO \
   --mint-reference-tx-in-redeemer-file mint_burn.json \
@@ -374,7 +374,7 @@ After successful testing on preprod:
 2. Document the test results
 3. Prepare for mainnet deployment with production parameters
 
-For any issues or questions during testing, refer to the error messages in the cardano-cli output or contact the TALOS development team.
+For any issues or questions during testing, refer to the error messages in the cardano-cli output or contact the AGENT development team.
 
 ## Successful Subscription Creation on Testnet
 
@@ -382,11 +382,11 @@ After extensive trial and error, we've successfully created a subscription on th
 
 ### Basic Subscription Creation (Successful)
 
-This command successfully creates a subscription by sending a TALOS token to the validator with datum:
+This command successfully creates a subscription by sending a AGENT token to the validator with datum:
 
 ```bash
-# Ensure you have enough ADA and TALOS tokens in your UTxOs
-TOKEN_UTXO="UTXO_WITH_TALOS_TOKENS"
+# Ensure you have enough ADA and AGENT tokens in your UTxOs
+TOKEN_UTXO="UTXO_WITH_AGENT_TOKENS"
 ADA_UTXO="UTXO_WITH_ENOUGH_ADA"
 
 # Build transaction
@@ -394,7 +394,7 @@ cardano-cli conway transaction build \
   --testnet-magic 1 \
   --tx-in $TOKEN_UTXO \
   --tx-in $ADA_UTXO \
-  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --tx-out-inline-datum-file data/subscription_datum.json \
   --change-address $PAYMENT_ADDR \
   --out-file tx.raw
@@ -413,7 +413,7 @@ cardano-cli conway transaction submit \
 ```
 
 This approach successfully creates a subscription by:
-1. Sending 1 TALOS token to the validator script
+1. Sending 1 AGENT token to the validator script
 2. Including 2 ADA minimum required value
 3. Attaching the subscription datum with details
 
@@ -435,7 +435,7 @@ cardano-cli conway transaction build \
   --tx-in $TOKEN_UTXO \
   --tx-in $ADA_UTXO \
   --tx-in-collateral $COLLATERAL_UTXO \
-  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${TALOS_POLICY_ID}.${TALOS_ASSET_NAME}" \
+  --tx-out "${VALIDATOR_ADDRESS}+2000000+1 ${AGENT_POLICY_ID}.${AGENT_ASSET_NAME}" \
   --tx-out-inline-datum-file data/subscription_datum.json \
   --mint "1 ${NFT_POLICY_ID}.${SUBSCRIPTION_ID}" \
   --mint-tx-in-reference $MINT_POLICY_UTXO \
@@ -467,14 +467,14 @@ To resolve the NFT minting issues, we will:
 To verify the subscription was created correctly:
 
 ```bash
-# Check validator address for TALOS token
+# Check validator address for AGENT token
 cardano-cli query utxo --address $VALIDATOR_ADDRESS --testnet-magic 1
 
 # Check your address for remaining tokens
 cardano-cli query utxo --address $PAYMENT_ADDR --testnet-magic 1
 ```
 
-The validator UTxO should show the TALOS token locked with the subscription datum.
+The validator UTxO should show the AGENT token locked with the subscription datum.
 
 ## Testing Subscription Functions
 
