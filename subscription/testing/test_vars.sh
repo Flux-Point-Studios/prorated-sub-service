@@ -12,9 +12,9 @@ export NFT_POLICY_ID="ebfc86e1117dee0d544ad158c932459db871849ec478234a9616f692"
 # Get your payment address
 export PAYMENT_ADDR="addr_test1vz0vfyc99rcycndayaz63jf2336mgkjyzgkjvrhvt50nrzcvjtplf"
 
-# Use test TALOS or create your own token for testing
-export TALOS_POLICY_ID="ca74fd781676cda239aed1a130fcc1484a39814429f3dd4ff6301c27"
-export TALOS_ASSET_NAME="74616c6f73"  # "talos" in hex
+# Use test AGENT or create your own token for testing
+export AGENT_POLICY_ID="ca74fd781676cda239aed1a130fcc1484a39814429f3dd4ff6301c27"
+export AGENT_ASSET_NAME="4147454e54"  # "agent" in hex
 
 # Get key hash for testing - replace with your actual key hash
 export SUBSCRIBER_KEY_HASH="9ec4930528f04c4dbd2745a8c92a8c75b45a4122d260eec5d1f318b"

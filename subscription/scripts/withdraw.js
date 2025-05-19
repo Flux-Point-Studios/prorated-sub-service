@@ -4,7 +4,7 @@
  * This demonstrates how to create a transaction that:
  * 1. Spends a subscription UTXO
  * 2. Burns the subscription NFT
- * 3. Returns TALOS tokens to the owner with applicable penalty
+ * 3. Returns AGENT tokens to the owner with applicable penalty
  * 
  * Note: This is a skeleton and needs to be integrated with a Cardano 
  * transaction library like Lucid.
@@ -20,8 +20,8 @@ const BLOCKFROST_URL = 'https://cardano-preprod.blockfrost.io/api/v0'; // Prepro
 const SUBSCRIPTION_SCRIPT_CBOR = 'SUBSCRIPTION_PLUTUS_SCRIPT_CBOR';
 const SUBSCRIPTION_ADDRESS = 'SUBSCRIPTION_ADDRESS';
 const SUBSCRIPTION_REFERENCE_UTXO = 'REFERENCE_SCRIPT_TXHASH#INDEX'; // For reference script
-const TALOS_POLICY_ID = 'TALOS_POLICY_ID';
-const TALOS_ASSET_NAME = '54414c4f53'; // Hex for 'TALOS'
+const AGENT_POLICY_ID = 'AGENT_POLICY_ID';
+const AGENT_ASSET_NAME = '4147454e54'; // Hex for 'AGENT'
 const ADMIN_ADDRESS = 'ADMIN_TREASURY_ADDRESS';
 
 // Subscription details
@@ -124,13 +124,13 @@ async function withdrawSubscription(walletAddress, privateKey, subscriptionUtxo,
     
     // Add output for user's tokens (return amount minus penalty)
     tx = tx.payToAddress(walletAddress, {
-      [TALOS_POLICY_ID + TALOS_ASSET_NAME]: userAmount
+      [AGENT_POLICY_ID + AGENT_ASSET_NAME]: userAmount
     });
     
     // Add output for admin's tokens (penalty) if there is a penalty
     if (adminAmount > 0n) {
       tx = tx.payToAddress(ADMIN_ADDRESS, {
-        [TALOS_POLICY_ID + TALOS_ASSET_NAME]: adminAmount
+        [AGENT_POLICY_ID + AGENT_ASSET_NAME]: adminAmount
       });
     }
     
@@ -153,8 +153,8 @@ async function withdrawSubscription(walletAddress, privateKey, subscriptionUtxo,
     const txHash = await signedTx.submit();
     
     console.log(`Withdraw successful! Transaction hash: ${txHash}`);
-    console.log(`User received: ${userAmount} TALOS`);
-    console.log(`Admin received: ${adminAmount} TALOS`);
+    console.log(`User received: ${userAmount} AGENT`);
+    console.log(`Admin received: ${adminAmount} AGENT`);
     console.log(`NFT ${nftName} burned`);
     
     return txHash;

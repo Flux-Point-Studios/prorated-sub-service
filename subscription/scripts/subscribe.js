@@ -2,7 +2,7 @@
  * Sample script for creating a subscription
  * 
  * This demonstrates how to create a transaction that:
- * 1. Locks 10,000 TALOS in the contract
+ * 1. Locks 10,000 AGENT in the contract
  * 2. Mints a subscription NFT
  * 
  * Note: This is a skeleton and needs to be integrated with a Cardano 
@@ -18,14 +18,14 @@ const BLOCKFROST_URL = 'https://cardano-preprod.blockfrost.io/api/v0'; // Prepro
 // Smart contract details
 const SUBSCRIPTION_SCRIPT_CBOR = 'SUBSCRIPTION_PLUTUS_SCRIPT_CBOR';
 const SUBSCRIPTION_ADDRESS = 'SUBSCRIPTION_ADDRESS';
-const TALOS_POLICY_ID = 'TALOS_POLICY_ID';
-const TALOS_ASSET_NAME = '54414c4f53'; // Hex for 'TALOS'
+const AGENT_POLICY_ID = 'AGENT_POLICY_ID';
+const AGENT_ASSET_NAME = '4147454e54'; // Hex for 'AGENT'
 
-// Amount of TALOS to lock
+// Amount of AGENT to lock
 const SUBSCRIPTION_AMOUNT = 10000n;
 
 /**
- * Create a subscription by locking 10,000 TALOS and minting an NFT
+ * Create a subscription by locking 10,000 AGENT and minting an NFT
  * @param {string} walletAddress - User's wallet address
  * @param {PrivateKey} privateKey - User's private key for signing
  */
@@ -63,8 +63,8 @@ async function createSubscription(walletAddress, privateKey) {
     const nftName = `Sub_${userVkh.slice(0, 8)}_${currentTimeMs}`;
     
     // Assets to lock in the contract
-    const talosAsset = {};
-    talosAsset[`${TALOS_POLICY_ID}${TALOS_ASSET_NAME}`] = SUBSCRIPTION_AMOUNT;
+    const agentAsset = {};
+    agentAsset[`${AGENT_POLICY_ID}${AGENT_ASSET_NAME}`] = SUBSCRIPTION_AMOUNT;
     
     // Create the transaction
     const tx = await lucid
@@ -73,7 +73,7 @@ async function createSubscription(walletAddress, privateKey) {
       .payToContract(
         SUBSCRIPTION_ADDRESS,
         { inline: datumCbor },
-        { [TALOS_POLICY_ID + TALOS_ASSET_NAME]: SUBSCRIPTION_AMOUNT }
+        { [AGENT_POLICY_ID + AGENT_ASSET_NAME]: SUBSCRIPTION_AMOUNT }
       )
       // Mint the subscription NFT to user's wallet
       .mintAssets({
