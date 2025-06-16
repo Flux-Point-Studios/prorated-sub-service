@@ -4,3 +4,51 @@ artifacts/
 build/
 # Aiken's default documentation export
 docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Cardano test artifacts
+*.txbody
+*.tx.signed
+*.cbor
+cost.json
+current_datum.json
+new_datum.json
+old_datum.json
+new_inst.json
+extend.redeemer.json
+merchant_claim.redeemer.json
+initial_claim.redeemer.json
+script_utxos.json
+blockfrost_utxos.json
+pparams_blockfrost.json
+new_datum.hash
+
+# Large files
+*.tar.gz
+cardano-node-*.tar.gz*
+
+# Temporary test outputs
+utxo.json
+utxos.json
+script_utxo.json
+unit.json
+datum.json
+mint.txbody
+mint_dbg.txbody
+tx.raw
+tx.signed
+
+# Keep these JSON files
+!aiken.json
+!plutus.json
+!subscribe.json
+!pparams.json
