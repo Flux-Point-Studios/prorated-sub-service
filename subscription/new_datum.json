@@ -1,0 +1,50 @@
+{
+  "constructor": 0,
+  "fields": [
+    {
+      "int": 1000000
+    },
+    {
+      "int": 0
+    },
+    {
+      "int": 2592000
+    },
+    {
+      "int": 1747682431
+    },
+    {
+      "int": 1752866431
+    },
+    {
+      "int": 1750274431
+    },
+    {
+      "list": [
+        {
+          "constructor": 0,
+          "fields": [
+            {
+              "int": 1752866431
+            },
+            {
+              "int": 10000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bytes": "fe268eb7c515fc35f9bbce20bd11246d8c780e09dbbc8078b3eaad2a"
+    },
+    {
+      "bytes": "71b957cba9287c31fcb3751e51d289cd3368496c0d753484715c9fa8"
+    },
+    {
+      "bytes": "fe268eb7c515fc35f9bbce20bd11246d8c780e09dbbc8078b3eaad2a"
+    },
+    {
+      "int": 0
+    }
+  ]
+}
