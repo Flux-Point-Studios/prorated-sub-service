@@ -1,6 +1,6 @@
 use aiken/builtin.{fst_pair, snd_pair}
 use aiken/collection/dict
-use aiken/collection/list.{find, foldl}
+use aiken/collection/list.{find, foldl, length}
 use aiken/crypto.{VerificationKeyHash}
 use cardano/assets.{PolicyId}
 use cardano/transaction.{InlineDatum, Output, Transaction}
@@ -25,11 +25,26 @@ pub type MintAction {
   CancelSubscription
 }
 
+/// Enhanced initial datum validation as per audit recommendations
 pub fn validate_initial_datum(d: SubscriptionDatum) -> Bool {
+  // Calculate expected number of installments based on subscription period
+  let subscription_duration = d.subscription_end - d.subscription_start
+  let expected_installments = subscription_duration / d.interval_length
+  
   and {
+    // Basic validations
     d.partner_percentage >= 0,
     d.partner_percentage <= 100,
-    d.subscription_end  >  d.subscription_start,
+    d.subscription_end > d.subscription_start,
+    d.interval_length > 0,
+    d.service_fee >= 0,
+    d.penalty_fee >= 0,
+    // Ensure original_subscription_end is set correctly at start
+    d.original_subscription_end == d.subscription_end,
+    // Verify number of installments matches expected
+    length(d.installments) == expected_installments,
+    // Ensure subscription duration is a multiple of interval_length
+    subscription_duration % d.interval_length == 0,
   }
 }
 
@@ -71,7 +86,10 @@ validator subscription_mint(
             minted_out.value,
             agent_policy_id,
             agent_asset_name)
-        expect (trace @"agent_deposit_10000" (agent_locked == 10000)?)
+        
+        // Calculate expected deposit based on number of installments
+        let expected_deposit = length(sub_datum.installments) * 10000
+        expect (trace @"agent_deposit_correct" (agent_locked == expected_deposit)?)
 
         expect (trace @"datum_ok" (validate_initial_datum(sub_datum))?)
 

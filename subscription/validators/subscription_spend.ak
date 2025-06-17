@@ -1,7 +1,7 @@
 use aiken/collection/dict
 use aiken/collection/list.{filter, find, foldl, head, is_empty, length}
 use aiken/crypto.{VerificationKeyHash}
-use aiken/interval.{Finite, Interval, IntervalBound, between, contains, hull}
+use aiken/interval.{Finite, Interval, IntervalBound, between, contains}
 use cardano/address.{Address, Credential}
 use cardano/assets.{PolicyId}
 use cardano/transaction.{
@@ -54,6 +54,11 @@ pub const subscription_amount: Int = 10000
 
 // each installment is 10,000 agent
 
+/// Minimum ADA requirement for outputs (approximate, actual may vary based on output size)
+pub const min_ada_utxo: Int = 1500000
+
+// 1.5 ADA in lovelace
+
 ///
 /// Compute penalty: returns (admin_portion, subscriber_refund)
 ///
@@ -68,6 +73,18 @@ pub fn calculate_penalty(elapsed: Int) -> (Int, Int) {
     // fully used => admin=0, subscriber= subscription_amount
     (0, subscription_amount)
   }
+}
+
+/// Enhanced penalty split calculation that handles integer division and ensures no lovelace lost
+/// Returns (admin_share, partner_share) ensuring admin_share + partner_share = total_penalty
+pub fn split_penalty_amount(
+  total_penalty: Int,
+  partner_percentage: Int,
+) -> (Int, Int) {
+  let partner_share = total_penalty * partner_percentage / 100
+  let admin_share = total_penalty - partner_share
+  // This ensures no lovelace is lost due to integer division
+  (admin_share, partner_share)
 }
 
 /// For merchant actions: use LOWER bound of tx range
@@ -181,13 +198,45 @@ pub fn validate_subscription_datum(d: SubscriptionDatum) -> Bool {
   }
 }
 
+/// Enhanced subscription datum validation including installment consistency
+pub fn validate_subscription_datum_extended(
+  d: SubscriptionDatum,
+  expected_installments: Int,
+) -> Bool {
+  let basic_valid =
+    and {
+      d.partner_percentage >= 0,
+      d.partner_percentage <= 100,
+      d.subscription_end > d.subscription_start,
+      d.interval_length > 0,
+      d.service_fee >= 0,
+      d.penalty_fee >= 0,
+      // Ensure subscription start is not in the far past
+      d.original_subscription_end >= d.subscription_start,
+    }
+
+  let installments_valid =
+    // Check if number of installments matches expected
+    length(d.installments) == expected_installments
+
+  and {
+    basic_valid,
+    installments_valid,
+  }
+}
+
 /// Check if a transaction's validity interval is contained within subscription active range
 pub fn check_subscription_active(
   d: SubscriptionDatum,
   tx_range: Interval<Int>,
 ) -> Bool {
-  let s_interval = between(d.subscription_start, d.subscription_end)
-  hull(tx_range, s_interval) == s_interval
+  // Audit recommendation: treat expiry as exclusive - active means strictly before expiry
+  // This prevents boundary issues where both MerchantWithdraw and SubscriberWithdraw 
+  // could potentially be valid at exactly the expiry moment
+  let Interval { upper_bound, .. } = tx_range
+  expect IntervalBound { bound_type: Finite(tx_upper), .. } = upper_bound
+  // Transaction must occur strictly before subscription_end
+  tx_upper < d.subscription_end
 }
 
 /// The main spending validator
@@ -311,6 +360,7 @@ validator subscription_spend(
 
         when length(remaining) is {
           0 -> {
+            // Final withdrawal - ensure all remaining funds are taken
             // Only merchant can sign
             let merchantSigned =
               foldl(
@@ -320,10 +370,31 @@ validator subscription_spend(
               )
             expect merchantSigned
 
-            let total_due = due.claimable_amount
-            let partner_cut = total_due * datum.partner_percentage / 100
-            let merchant_cut = total_due - partner_cut
-            expect partner_cut + merchant_cut == total_due
+            // For final withdrawal, take all remaining agent tokens to avoid dust
+            let old_agent_balance =
+              assets.quantity_of(
+                old_output.value,
+                agent_policy_id,
+                agent_asset_name,
+              )
+            
+            // Use actual remaining balance instead of just due.claimable_amount
+            // This ensures no dust is left if there was any rounding
+            let total_due = 
+              if old_agent_balance > due.claimable_amount {
+                old_agent_balance  // Take everything to avoid dust
+              } else {
+                due.claimable_amount
+              }
+            
+            // Use enhanced penalty split for consistency
+            let (merchant_cut, partner_cut) =
+              if datum.partner_percentage > 0 {
+                let partner_share = total_due * datum.partner_percentage / 100
+                (total_due - partner_share, partner_share)
+              } else {
+                (total_due, 0)
+              }
 
             expect
               verify_exact_payment(
@@ -455,8 +526,9 @@ validator subscription_spend(
             },
           )
 
-        let partner_cut = admin_amount * datum.partner_percentage / 100
-        let final_admin_amount = admin_amount - partner_cut
+        // Use enhanced penalty split calculation to ensure no lovelace is lost
+        let (final_admin_amount, partner_cut) =
+          split_penalty_amount(admin_amount, datum.partner_percentage)
 
         let so = filter(outputs, fn(o) { o.address == script_addr })
 
@@ -511,8 +583,10 @@ validator subscription_spend(
       //
       SubscriberWithdraw -> {
         let now = current_time_for_subscriber(validity_range)
+        // Audit fix: Ensure subscription is expired (>= ensures no overlap with active period)
         expect now >= datum.subscription_end
 
+        // Only proceed if there are remaining installments (funds) to withdraw
         expect datum.installments != []
         let subscriberSigned =
           foldl(
@@ -525,14 +599,23 @@ validator subscription_spend(
         // must burn NFT
         expect verify_nft_burning(mint, nft_policy_id)
 
+        // Calculate total remaining agent tokens to withdraw
+        let remaining_agent =
+          assets.quantity_of(
+            old_output.value,
+            agent_policy_id,
+            agent_asset_name,
+          )
+
         let so = filter(outputs, fn(o) { o.address == script_addr })
         expect and {
+            // Withdraw all remaining funds, not just subscription_amount
             verify_exact_payment(
               outputs,
               datum.subscriber_key_hash,
               agent_policy_id,
               agent_asset_name,
-              subscription_amount,
+              remaining_agent,
             ),
             is_empty(so),
           }

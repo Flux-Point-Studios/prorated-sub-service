@@ -1,6 +1,6 @@
 name = "agent/subscription"
 version = "0.1.0"
-compiler = "v1.1.15"
+compiler = "v1.1.17"
 plutus = "v3"
 license = "Apache-2.0"
 description = "Cardano smart contract-based subscription system for $AGENT token"
@@ -35,5 +35,9 @@ name = "nft_policy_id"
 type = "PolicyId"
 description = "Policy ID for the Subscription NFT."
 
+[[blueprint.parameters]]
+name = "nft_asset_name"
+type = "ByteArray"
+description = "Asset name for the Subscription NFT."
 
 [config]
