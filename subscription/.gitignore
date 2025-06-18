@@ -5,6 +5,12 @@ build/
 # Aiken's default documentation export
 docs/
 
+# CRITICAL: Private keys and wallet files - NEVER commit these!
+wallets/
+*.skey
+*.vkey
+*.addr
+
 # Python
 __pycache__/
 *.py[cod]
