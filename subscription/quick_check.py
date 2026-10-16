@@ -7,7 +7,8 @@ from datetime import datetime
 # Load environment
 SCRIPT_ADDR = "addr1w8agnx3v5anvfy20sx7yzzjmupe8lfxqf5k204u0u3ux0hgt0r5kf"
 SCRIPT_TX = "85b49ecc946c6d87d2b9eae008b77f2abe5e8aa706c338f3445febafe36007fd#0"
-BLOCKFROST_KEY = "mainnetXdMvEPp07a5GgSWtpSqUytnmtR4OvJzr"
+BLOCKFROST_KEY = os.environ["BLOCKFROST_PROJECT_ID"]
+BLOCKFROST_API_URL = os.environ.get("BLOCKFROST_API_URL", "https://mainnet.insight.iagon.com/api/v0")
 
 print("=== Quick Contract Status Check ===")
 print(f"Script Address: {SCRIPT_ADDR[:30]}...")
@@ -18,7 +19,7 @@ print()
 import urllib.request
 import urllib.error
 
-url = f"https://cardano-mainnet.blockfrost.io/api/v0/addresses/{SCRIPT_ADDR}/utxos"
+url = f"{BLOCKFROST_API_URL}/addresses/{SCRIPT_ADDR}/utxos"
 headers = {"project_id": BLOCKFROST_KEY}
 
 try:
